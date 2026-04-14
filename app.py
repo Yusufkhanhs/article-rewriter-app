@@ -2,52 +2,18 @@ import streamlit as st
 import requests
 from bs4 import BeautifulSoup
 
+# ---- Extract content from URL ----
 def extract_text(url):
     try:
         res = requests.get(url, timeout=10)
         soup = BeautifulSoup(res.text, 'html.parser')
         paragraphs = soup.find_all('p')
         return " ".join([p.get_text() for p in paragraphs])
-    except:
+    except Exception as e:
         return ""
 
+# ---- Rewrite using AI ----
 def rewrite_article(content):
-    api_key = st.secrets["GROQ_API_KEY"]
-
-    url = "https://api.groq.com/openai/v1/chat/completions"
-
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json"
-    }
-
-    prompt = f"""
-You are a professional news editor.
-
-Rewrite the article into a completely original news piece.
-
-Rules:
-- Do NOT paraphrase line-by-line
-- Completely restructure
-- Keep facts accurate
-- Add headline
-- Add SEO Title
-- Add Meta Description
-- Add keywords
-- Use subheadings
-- Make it plagiarism free
-
-Article:
-{content}
-"""
-
-    data = {
-        "model": "llama3-70b-8192",
-        "messages": [{"role": "user", "content": prompt}]
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-   def rewrite_article(content):
     api_key = st.secrets.get("GROQ_API_KEY")
 
     if not api_key:
@@ -65,16 +31,18 @@ You are a professional news editor.
 
 Rewrite the article into a completely original news piece.
 
-Rules:
+Strict rules:
 - Do NOT paraphrase line-by-line
-- Completely restructure
+- Completely restructure the article
 - Keep facts accurate
-- Add headline
-- Add SEO Title
-- Add Meta Description
-- Add keywords
+- Use a journalistic tone
+- Add a strong headline
+- Add SEO Title (max 60 chars)
+- Add Meta Description (150 chars)
+- Add 3-5 SEO keywords
 - Use subheadings
-- Make it plagiarism free
+- Make it same length or longer than original
+- Ensure it's plagiarism-free
 
 Article:
 {content}
@@ -82,33 +50,39 @@ Article:
 
     data = {
         "model": "llama3-70b-8192",
-        "messages": [{"role": "user", "content": prompt}]
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.7
     }
 
-    response = requests.post(url, headers=headers, json=data)
-
     try:
+        response = requests.post(url, headers=headers, json=data)
         res_json = response.json()
 
         if "choices" in res_json:
-            return res_json['choices'][0]['message']['content']
+            return res_json["choices"][0]["message"]["content"]
         else:
             return f"❌ API Error: {res_json}"
 
     except Exception as e:
-        return f"❌ Unexpected Error: {str(e)}"
+        return f"❌ Request failed: {str(e)}"
 
-st.title("AI Article Rewriter")
 
-url_input = st.text_input("Enter URL")
-manual_text = st.text_area("Or paste content")
+# ---- Streamlit UI ----
+st.title("📰 AI Article Rewriter")
 
-if st.button("Rewrite"):
-    content = extract_text(url_input) if url_input else manual_text
+url_input = st.text_input("Enter Article URL")
+manual_text = st.text_area("Or Paste Article Content")
 
-    if not content:
-        st.warning("Provide input")
+if st.button("Rewrite Article"):
+    if url_input:
+        content = extract_text(url_input)
+    else:
+        content = manual_text
+
+    if not content.strip():
+        st.warning("Please provide URL or content")
     else:
         with st.spinner("Rewriting..."):
             result = rewrite_article(content)
+            st.success("Done!")
             st.write(result)
