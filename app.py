@@ -47,8 +47,56 @@ Article:
     }
 
     response = requests.post(url, headers=headers, json=data)
-    return response.json()['choices'][0]['message']['content']
+   def rewrite_article(content):
+    api_key = st.secrets.get("GROQ_API_KEY")
 
+    if not api_key:
+        return "❌ API Key missing. Check Streamlit Secrets."
+
+    url = "https://api.groq.com/openai/v1/chat/completions"
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"
+    }
+
+    prompt = f"""
+You are a professional news editor.
+
+Rewrite the article into a completely original news piece.
+
+Rules:
+- Do NOT paraphrase line-by-line
+- Completely restructure
+- Keep facts accurate
+- Add headline
+- Add SEO Title
+- Add Meta Description
+- Add keywords
+- Use subheadings
+- Make it plagiarism free
+
+Article:
+{content}
+"""
+
+    data = {
+        "model": "llama3-70b-8192",
+        "messages": [{"role": "user", "content": prompt}]
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+
+    try:
+        res_json = response.json()
+
+        if "choices" in res_json:
+            return res_json['choices'][0]['message']['content']
+        else:
+            return f"❌ API Error: {res_json}"
+
+    except Exception as e:
+        return f"❌ Unexpected Error: {str(e)}"
 
 st.title("AI Article Rewriter")
 
