@@ -262,10 +262,10 @@ let S = {
 async function apiCall(system, userMsg, useSearch=false) {
   const key = S.apiKey || DEFAULT_KEY;
   if (!key || !key.startsWith('sk-ant-')) throw new Error('Add your Anthropic API key in Settings first.');
-  const body = {model:MODEL, max_tokens:3000, system, messages:[{role:'user',content:userMsg}]};
+  const body = {model:MODEL, max_tokens:8000, system, messages:[{role:'user',content:userMsg}]};
   if (useSearch) body.tools = [{type:'web_search_20250305',name:'web_search'}];
   let msgs = [{role:'user',content:userMsg}];
-  for (let i=0; i<10; i++) {
+  for (let i=0; i<15; i++) {
     const rb = {...body, messages:msgs};
     const res = await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',
@@ -276,15 +276,18 @@ async function apiCall(system, userMsg, useSearch=false) {
     if (!res.ok) throw new Error(d.error?.message||`API Error ${res.status}`);
     const txt = (d.content||[]).filter(b=>b.type==='text');
     const tu  = (d.content||[]).filter(b=>b.type==='tool_use');
-    if (d.stop_reason==='end_turn'||(!tu.length&&txt.length)){
-      const t = txt.map(b=>b.text).join('');
-      const c = t.replace(/```json\n?|```/g,'').trim();
-      try{return JSON.parse(c)}catch{throw new Error('Parse error. Please try again.')}
-    }
     if (tu.length){
       msgs.push({role:'assistant',content:d.content});
-      msgs.push({role:'user',content:tu.map(tb=>({type:'tool_result',tool_use_id:tb.id,content:'Search executed successfully.'}))});
-    } else break;
+      msgs.push({role:'user',content:tu.map(tb=>({type:'tool_result',tool_use_id:tb.id,content:[]}))});
+      continue;
+    }
+    if (d.stop_reason==='end_turn'||txt.length){
+      const t = txt.map(b=>b.text).join('');
+      const c = t.replace(/```json\n?|```/g,'').trim();
+      const jsonMatch = c.match(/(\[[\s\S]*\]|\{[\s\S]*\})/);
+      try{return JSON.parse(jsonMatch?jsonMatch[0]:c)}catch{throw new Error('Parse error: the model did not return valid JSON. Please try again.')}
+    }
+    break;
   }
   throw new Error('Generation failed. Please try again.');
 }
